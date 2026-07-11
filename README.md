@@ -54,9 +54,9 @@ cp -R build/HeartEyes.app /Applications/
 There's no Dock icon — look for the heart mark and its **`20:00`** countdown in your
 menu bar.
 
-> **Homebrew & a notarized download are on the roadmap.** Until then, the app is
-> ad‑hoc signed, so on first launch macOS may ask you to confirm in
-> **System Settings → Privacy & Security**.
+> **A one‑click, notarized download and a Homebrew cask are on the roadmap** —
+> ⭐ star the repo to help get there. Building from source (above) runs with **no
+> Gatekeeper prompt**, since a locally built app isn't quarantined.
 
 ## Menu
 
