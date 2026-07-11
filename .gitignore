@@ -1,0 +1,41 @@
+# ── macOS ───────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# ── Swift / build output ────────────────────────────────────────────────
+build/
+*.app
+DerivedData/
+.build/
+*.xcuserstate
+*.dSYM/
+
+# ── Marketing site — kept out of the public repo, deployed separately ───
+# The landing page (web/) is deployed to Netlify with the Netlify CLI from a
+# local copy; it is intentionally not part of this open-source app repo.
+web/
+netlify.toml
+# ── Design references (third-party assets) ──────────────────────────────
+design-reference/
+
+# ── Dev-only tooling (not needed by users or the build) ─────────────────
+Tools/
+scripts/
+
+# ── Logs & env ──────────────────────────────────────────────────────────
+*.log
+firebase-debug.log*
+.firebase/
+.env
+.env.*
+!.env.example
+
+# ── Editor / misc ───────────────────────────────────────────────────────
+.idea/
+*.swp
+.vscode/*
+!.vscode/extensions.json
+docs/

@@ -1,0 +1,95 @@
+name: Release
+
+# Tag a version to cut a release:  git tag v1.0.0 && git push origin v1.0.0
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive version from tag
+        id: v
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      # Notarization only runs if you've added the signing secrets
+      # (MACOS_CERT_P12, MACOS_CERT_PASSWORD, APPLE_ID, APPLE_TEAM_ID,
+      # APPLE_APP_PASSWORD). Without them the release still ships — ad-hoc
+      # signed — so first launch shows a Gatekeeper prompt (right-click → Open).
+      - name: Detect signing secrets
+        id: secrets
+        env:
+          CERT: ${{ secrets.MACOS_CERT_P12 }}
+        run: |
+          if [ -n "$CERT" ]; then
+            echo "signing=true"  >> "$GITHUB_OUTPUT"
+          else
+            echo "signing=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No signing secrets found — shipping an ad-hoc-signed (un-notarized) build."
+          fi
+
+      - name: Import Developer ID certificate
+        if: steps.secrets.outputs.signing == 'true'
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PW="$(uuidgen)"
+          security create-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          echo "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
+            -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PW" "$KEYCHAIN" >/dev/null
+          # Put our keychain first in the search list so codesign finds the cert.
+          security list-keychains -d user -s "$KEYCHAIN" \
+            $(security list-keychains -d user | sed s/\"//g)
+          IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN" \
+            | grep 'Developer ID Application' | head -1 | awk -F'"' '{print $2}')"
+          echo "MACOS_SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+      - name: Build app (universal)
+        env:
+          HEARTEYES_VERSION: ${{ steps.v.outputs.version }}
+        run: ./build.sh
+
+      - name: Notarize & staple
+        if: steps.secrets.outputs.signing == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          ditto -c -k --keepParent build/HeartEyes.app "$RUNNER_TEMP/notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" --wait
+          xcrun stapler staple build/HeartEyes.app
+          spctl -a -vvv build/HeartEyes.app
+
+      # Stable filename (no version) so the website can deep-link
+      # /releases/latest/download/HeartEyes.zip and it keeps resolving to newest.
+      - name: Zip the app
+        run: ditto -c -k --keepParent build/HeartEyes.app "HeartEyes.zip"
+
+      - name: Checksum
+        run: shasum -a 256 "HeartEyes.zip" | tee "HeartEyes.zip.sha256"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            HeartEyes.zip
+            HeartEyes.zip.sha256
+          generate_release_notes: true
+          fail_on_unmatched_files: true

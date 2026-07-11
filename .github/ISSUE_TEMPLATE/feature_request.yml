@@ -1,0 +1,29 @@
+name: 💡 Feature request
+description: Suggest an idea for HeartEyes
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the situation or friction you're hitting.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What would you like HeartEyes to do?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: principles
+    attributes:
+      label: Fits the project's values
+      options:
+        - label: This keeps HeartEyes local-first, private, and offline (no accounts, telemetry, or cloud).
+          required: true

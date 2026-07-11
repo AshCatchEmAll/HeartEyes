@@ -1,0 +1,42 @@
+name: 🐛 Bug report
+description: Something isn't working the way it should
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for the report! Please fill in the details below so we can reproduce it.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+      placeholder: When the break overlay appears, …
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Set the work interval to …
+        2. Wait for a break …
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "e.g. 14.5 (Sonoma)"
+    validations:
+      required: true
+  - type: input
+    id: mac
+    attributes:
+      label: Mac model / chip
+      placeholder: "e.g. MacBook Air M2, or Intel"
+  - type: input
+    id: version
+    attributes:
+      label: HeartEyes version
+      placeholder: "e.g. 1.0.0 (see the menu-bar menu)"
