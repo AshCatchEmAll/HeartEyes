@@ -15,8 +15,9 @@ covers your screens with a GIF of your choice and a 20‑second countdown, then 
 
 </div>
 
-<!-- TODO: add a screenshot/GIF of a break overlay here — it's the single most
-     valuable thing for the README and for App-store/AI listings. -->
+<p align="center">
+  <img src="assets/demo.gif" alt="HeartEyes: pick 'Take a break now' and the break overlay dims the screen with your GIF and a 20-second countdown" width="760">
+</p>
 
 ## Why HeartEyes
 
@@ -26,9 +27,12 @@ digital eye strain. HeartEyes keeps that rhythm for you, and makes the break
 something you'll actually enjoy instead of dismiss.
 
 - 🕒 **The 20‑20‑20 rule, automated** — a countdown lives in your menu bar.
-- 🖼️ **Your GIF, full screen** — pick any local GIF or paste a Giphy link.
+- 🖼️ **Your GIF, full screen** — pick any local GIF or paste a Giphy/Tenor link.
 - 🖥️ **Every display** — the overlay sits above full‑screen apps and the menu bar.
-- 🔒 **Private & offline** — no account, no telemetry, no cloud. Everything stays on your Mac.
+- 👁️ **Gentle blink reminders** — optional, wordless nudges from the menu bar or a whole‑screen eyelid.
+- 🎥 **Smart auto‑pause** — holds breaks during calls and full‑screen video, and skips one when you've stepped away.
+- 📊 **Weekly reflection** — a private *This week…* look at your rest, computed on your Mac.
+- 🔒 **Private & offline** — no account, no telemetry, no cloud, no camera. Everything stays on your Mac.
 - 🪶 **Tiny & native** — dependency‑free Swift (AppKit). Universal binary, macOS 13+.
 - 💙 **Free & open source, forever** — MIT licensed.
 
@@ -60,6 +64,9 @@ menu bar.
 
 ## Menu
 
+- **This week…** — a private weekly reflection: your longest stretch without a break,
+  how much of your screen time was rest, breaks taken vs. skipped, and time held during
+  calls. On‑device and deletable — never a daily score.
 - **Take a break now** (⌘B) — trigger a break immediately
 - **Pause / Resume** (⌘P)
 - **Break GIF…** — one window to pick what you see during breaks: drop a file on the
@@ -68,6 +75,12 @@ menu bar.
   link or a GIF, it's offered to you in one click.
 - **Work interval** — 10 / 20 / 30 / 45 / 60 min (plus a 1‑min test mode)
 - **Break length** — 10 / 20 / 30 / 60 sec
+- **Blink reminders** — off, or every 3 / 5 / 10 min, in four styles (Hearts, Sparkles,
+  Dewdrops, Just the blink), shown from the menu bar or as a whole‑screen eyelid.
+- **Hold breaks during calls & video** — smart auto‑pause; holds a break while a call
+  or full‑screen video is going. On by default.
+- **Count time away as a break** — skip a break when you've already been away from the
+  keyboard. On by default.
 - **Launch at login** — start HeartEyes automatically
 - **Quit** (⌘Q)
 
@@ -75,9 +88,10 @@ During a break, press **Esc** (or click **Skip**) to end it early.
 
 ## Privacy
 
-HeartEyes has **no account, no telemetry, and no cloud**. Your GIF, interval, and
-break length are stored locally and remembered between launches. The only network
-request it ever makes is downloading a GIF you explicitly paste in.
+HeartEyes has **no account, no telemetry, and no cloud** — and **no camera** or special
+permissions to grant. Your GIF, settings, and a 90‑day rest history all live on your Mac
+(the history is deletable in one click). The only network request it ever makes is
+downloading a GIF you explicitly paste in.
 
 ## Contributing
 
