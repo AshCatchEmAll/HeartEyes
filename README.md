@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/logo.png" alt="HeartEyes" width="140" height="140">
+
 # HeartEyes 😍
 
 **A tiny native macOS menu-bar app for the 20‑20‑20 rule.**

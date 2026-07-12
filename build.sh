@@ -36,6 +36,9 @@ lipo -create -output "$MACOS/HeartEyes" \
   "build/HeartEyes-arm64" "build/HeartEyes-x86_64"
 rm -f "build/HeartEyes-arm64" "build/HeartEyes-x86_64"
 
+echo "› Installing app icon…"
+cp assets/AppIcon.icns "$RES/HeartEyes.icns"
+
 echo "› Writing Info.plist (version $VERSION)…"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -46,6 +49,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleDisplayName</key>       <string>HeartEyes</string>
   <key>CFBundleIdentifier</key>        <string>com.aashish.hearteyes</string>
   <key>CFBundleExecutable</key>        <string>HeartEyes</string>
+  <key>CFBundleIconFile</key>          <string>HeartEyes</string>
   <key>CFBundlePackageType</key>       <string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleVersion</key>           <string>$VERSION</string>

@@ -6,6 +6,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **App icon.** A proper bundle icon — the sleepy 3D heart — now ships with the
+  app, so HeartEyes shows its face in Finder and the Applications folder.
+
 ## [1.0.0] — 2026-07-11
 
 The first public release. A native macOS menu-bar app that keeps the 20-20-20
