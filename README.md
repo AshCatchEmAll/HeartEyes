@@ -16,7 +16,7 @@ covers your screens with a GIF of your choice and a 20‑second countdown, then 
 </div>
 
 <p align="center">
-  <img src="assets/demo.gif" alt="HeartEyes: pick 'Take a break now' and the break overlay dims the screen with your GIF and a 20-second countdown" width="760">
+  <img src="https://github.com/user-attachments/assets/007ef759-e03c-497b-932b-a9c711016e98" alt="HeartEyes: pick 'Take a break now' and the break overlay dims the screen with your GIF and a 20-second countdown" width="760">
 </p>
 
 ## Why HeartEyes
