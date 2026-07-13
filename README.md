@@ -11,9 +11,9 @@ covers your screens with a GIF of your choice and a 20‑second countdown, then 
 [![CI](https://github.com/AshCatchEmAll/HeartEyes/actions/workflows/ci.yml/badge.svg)](https://github.com/AshCatchEmAll/HeartEyes/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform: macOS 13+](https://img.shields.io/badge/macOS-13%2B-black?logo=apple)](https://www.apple.com/macos/)
-[![Stars](https://img.shields.io/github/stars/AshCatchEmAll/HeartEyes?style=flat&logo=github&color=f5a623)](https://github.com/AshCatchEmAll/HeartEyes/stargazers)
+[![Stars](https://img.shields.io/github/stars/AshCatchEmAll/HeartEyes?style=flat&logo=github&color=f5a623)](https://github.com/AshCatchEmAll/HeartEyes)
 
-[Website](https://hearteyes.app) · [Report a bug](https://github.com/AshCatchEmAll/HeartEyes/issues) · [Request a feature](https://github.com/AshCatchEmAll/HeartEyes/issues) · [Star it ⭐](https://github.com/AshCatchEmAll/HeartEyes/stargazers)
+[Website](https://hearteyez.netlify.app) · [Report a bug](https://github.com/AshCatchEmAll/HeartEyes/issues) · [Request a feature](https://github.com/AshCatchEmAll/HeartEyes/issues) · [Star it ⭐](https://github.com/AshCatchEmAll/HeartEyes)
 
 </div>
 
@@ -108,7 +108,7 @@ nothing to subscribe to. A star is the only thing it ever asks for: it's how the
 person with aching eyes finds this repo, and it's the signal that tells me what to
 build next.
 
-- ⭐ **[Star HeartEyes](https://github.com/AshCatchEmAll/HeartEyes/stargazers)** — two seconds, costs nothing
+- ⭐ **[Star HeartEyes](https://github.com/AshCatchEmAll/HeartEyes)** — two seconds, costs nothing
 - 🗣️ Send it to someone whose eyes are screaming by 5pm
 - 🛠️ [Open an issue or a PR](https://github.com/AshCatchEmAll/HeartEyes/issues) — it's a handful of dependency‑free Swift files
 
