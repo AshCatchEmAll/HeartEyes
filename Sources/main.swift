@@ -1211,8 +1211,7 @@ final class BreakPicker: NSObject, NSWindowDelegate, NSTextFieldDelegate, NSText
     private let quoteView = NSTextView(frame: NSRect(x: 0, y: 0, width: 380, height: 196))
     private let quoteHint: NSTextField = {
         let l = NSTextField(wrappingLabelWithString:
-            "One line, one quote — anything that gets you out of the chair. "
-            + "A different one shows up each break.")
+            "One quote per line — anything at all. Each break shows one of them at random.")
         l.font = .systemFont(ofSize: 11)
         l.textColor = .secondaryLabelColor
         return l
