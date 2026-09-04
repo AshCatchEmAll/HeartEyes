@@ -864,6 +864,8 @@ enum Presence {
 private enum Keys {
     static let gifPath = "gifPath"
     static let gifLabel = "gifLabel"
+    static let quotes = "quotes"
+    static let breakVisual = "breakVisual"
     static let workMinutes = "workMinutes"
     static let breakSeconds = "breakSeconds"
     static let blinkMinutes = "blinkMinutes"
@@ -875,6 +877,17 @@ private enum Keys {
     static let auditDay = "auditDay"
     static let heldToday = "heldToday"
     static let naturalToday = "naturalToday"
+}
+
+enum BreakVisual: String, CaseIterable {
+    case gif, quote
+
+    var label: String {
+        switch self {
+        case .gif:   return "A picture"
+        case .quote: return "Your words"
+        }
+    }
 }
 
 enum GifSource {
@@ -1173,41 +1186,63 @@ final class SuggestionChip: NSView {
     override func mouseExited(with event: NSEvent) { hovering = false; NSCursor.arrow.set() }
 }
 
-final class GifPickerWindow: NSWindow {
+final class BreakPickerWindow: NSWindow {
     override var canBecomeKey: Bool { true }
     override func cancelOperation(_ sender: Any?) { performClose(nil) }
 }
 
-final class GifPicker: NSObject, NSWindowDelegate, NSTextFieldDelegate {
-    private let window = GifPickerWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 480),
-                                         styleMask: [.titled, .closable],
-                                         backing: .buffered,
-                                         defer: false)
+final class BreakPicker: NSObject, NSWindowDelegate, NSTextFieldDelegate, NSTextViewDelegate {
+    private let window = BreakPickerWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 480),
+                                           styleMask: [.titled, .closable],
+                                           backing: .buffered,
+                                           defer: false)
     private let drop = GifDropView()
     private let field = NSTextField()
     private let loadButton = NSButton()
     private let resetButton = NSButton()
+    private let browseButton = NSButton()
     private let spinner = NSProgressIndicator()
     private let status = pickerLabel(" ", size: 11, color: .secondaryLabelColor)
+    private let sub = pickerLabel(" ", size: 12, color: .secondaryLabelColor)
+    private let modes = NSSegmentedControl()
+    private let gifPane = NSStackView()
+    private let quotePane = NSStackView()
+    private let quoteScroll = NSScrollView()
+    private let quoteView = NSTextView(frame: NSRect(x: 0, y: 0, width: 380, height: 196))
+    private let quoteHint: NSTextField = {
+        let l = NSTextField(wrappingLabelWithString:
+            "One line, one quote — anything that gets you out of the chair. "
+            + "A different one shows up each break.")
+        l.font = .systemFont(ofSize: 11)
+        l.textColor = .secondaryLabelColor
+        return l
+    }()
     private var chip: SuggestionChip?
 
     private let storeDir: URL
     private var path: String?
+    private var quotes: [String]
+    private var mode: BreakVisual
     private var busy = false { didSet { refreshControls() } }
 
     var onChange: ((String?, String?) -> Void)?
+    var onQuotesChange: (([String]) -> Void)?
+    var onModeChange: ((BreakVisual) -> Void)?
     var onClose: (() -> Void)?
 
-    init(currentPath: String?, storeDir: URL) {
+    init(currentPath: String?, quotes: [String], mode: BreakVisual, storeDir: URL) {
         self.storeDir = storeDir
         self.path = currentPath
+        self.quotes = quotes
+        self.mode = mode
         super.init()
 
-        window.title = "Break GIF"
+        window.title = "Break Screen"
         window.delegate = self
         window.isReleasedWhenClosed = false
         let content = buildContent()
         window.contentView = content
+        applyMode()
         window.setContentSize(content.fittingSize)
         window.center()
 
@@ -1226,7 +1261,13 @@ final class GifPicker: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         let root = NSView(frame: NSRect(x: 0, y: 0, width: 420, height: 480))
 
         let heading = pickerLabel("Pick what you'll look at", size: 15, weight: .semibold)
-        let sub = pickerLabel("It fills the screen while your eyes rest.", size: 12, color: .secondaryLabelColor)
+
+        modes.segmentCount = BreakVisual.allCases.count
+        for (i, visual) in BreakVisual.allCases.enumerated() { modes.setLabel(visual.label, forSegment: i) }
+        modes.selectedSegment = BreakVisual.allCases.firstIndex(of: mode) ?? 0
+        modes.target = self
+        modes.action = #selector(switchMode(_:))
+        modes.translatesAutoresizingMaskIntoConstraints = false
 
         drop.translatesAutoresizingMaskIntoConstraints = false
         drop.onSource = { [weak self] in self?.load($0) }
@@ -1259,21 +1300,30 @@ final class GifPicker: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         statusRow.spacing = 6
         statusRow.translatesAutoresizingMaskIntoConstraints = false
 
-        let column = NSStackView(views: [heading, sub, drop, urlRow, statusRow])
+        gifPane.orientation = .vertical
+        gifPane.alignment = .leading
+        gifPane.spacing = 8
+        gifPane.translatesAutoresizingMaskIntoConstraints = false
+        for view in [drop, urlRow, statusRow] as [NSView] { gifPane.addArrangedSubview(view) }
+        gifPane.setCustomSpacing(14, after: drop)
+
+        buildQuotePane()
+
+        let column = NSStackView(views: [heading, sub, modes, gifPane, quotePane])
         column.orientation = .vertical
         column.alignment = .leading
         column.spacing = 8
-        column.setCustomSpacing(16, after: sub)
-        column.setCustomSpacing(14, after: drop)
+        column.setCustomSpacing(14, after: sub)
+        column.setCustomSpacing(16, after: modes)
         column.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(column)
 
-        if let suggestion = GifPicker.clipboardSuggestion() {
+        if let suggestion = BreakPicker.clipboardSuggestion() {
             let chip = makeChip(for: suggestion.source, label: suggestion.label)
             chip.translatesAutoresizingMaskIntoConstraints = false
-            column.insertArrangedSubview(chip, at: 3)
-            column.setCustomSpacing(10, after: chip)
-            chip.widthAnchor.constraint(equalTo: column.widthAnchor).isActive = true
+            gifPane.insertArrangedSubview(chip, at: 1)
+            gifPane.setCustomSpacing(10, after: chip)
+            chip.widthAnchor.constraint(equalTo: gifPane.widthAnchor).isActive = true
             self.chip = chip
         }
 
@@ -1281,8 +1331,10 @@ final class GifPicker: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         separator.boxType = .separator
         separator.translatesAutoresizingMaskIntoConstraints = false
 
-        let browse = NSButton(title: "Browse Files…", target: self, action: #selector(browseFiles))
-        browse.bezelStyle = .rounded
+        browseButton.title = "Browse Files…"
+        browseButton.bezelStyle = .rounded
+        browseButton.target = self
+        browseButton.action = #selector(browseFiles)
         resetButton.title = "Use Default"
         resetButton.bezelStyle = .rounded
         resetButton.target = self
@@ -1293,7 +1345,7 @@ final class GifPicker: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
 
-        let bar = NSStackView(views: [browse, spacer, resetButton, done])
+        let bar = NSStackView(views: [browseButton, spacer, resetButton, done])
         bar.orientation = .horizontal
         bar.spacing = 8
         bar.translatesAutoresizingMaskIntoConstraints = false
@@ -1306,11 +1358,19 @@ final class GifPicker: NSObject, NSWindowDelegate, NSTextFieldDelegate {
             column.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -20),
             column.widthAnchor.constraint(equalToConstant: 380),
 
-            drop.widthAnchor.constraint(equalTo: column.widthAnchor),
+            modes.widthAnchor.constraint(equalTo: column.widthAnchor),
+            gifPane.widthAnchor.constraint(equalTo: column.widthAnchor),
+            quotePane.widthAnchor.constraint(equalTo: column.widthAnchor),
+
+            drop.widthAnchor.constraint(equalTo: gifPane.widthAnchor),
             drop.heightAnchor.constraint(equalToConstant: 186),
-            urlRow.widthAnchor.constraint(equalTo: column.widthAnchor),
-            statusRow.widthAnchor.constraint(equalTo: column.widthAnchor),
+            urlRow.widthAnchor.constraint(equalTo: gifPane.widthAnchor),
+            statusRow.widthAnchor.constraint(equalTo: gifPane.widthAnchor),
             statusRow.heightAnchor.constraint(equalToConstant: 16),
+
+            quoteScroll.widthAnchor.constraint(equalTo: quotePane.widthAnchor),
+            quoteScroll.heightAnchor.constraint(equalToConstant: 196),
+            quoteHint.widthAnchor.constraint(equalTo: quotePane.widthAnchor),
 
             separator.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             separator.trailingAnchor.constraint(equalTo: root.trailingAnchor),
@@ -1322,6 +1382,69 @@ final class GifPicker: NSObject, NSWindowDelegate, NSTextFieldDelegate {
             bar.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -16),
         ])
         return root
+    }
+
+    private func buildQuotePane() {
+        quoteView.isRichText = false
+        quoteView.isAutomaticQuoteSubstitutionEnabled = false
+        quoteView.isAutomaticDashSubstitutionEnabled = false
+        quoteView.font = .systemFont(ofSize: 13)
+        quoteView.textContainerInset = NSSize(width: 8, height: 10)
+        quoteView.isVerticallyResizable = true
+        quoteView.isHorizontallyResizable = false
+        quoteView.autoresizingMask = [.width]
+        quoteView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude,
+                                   height: CGFloat.greatestFiniteMagnitude)
+        quoteView.textContainer?.widthTracksTextView = true
+        quoteView.delegate = self
+        quoteView.string = quotes.joined(separator: "\n")
+
+        quoteScroll.documentView = quoteView
+        quoteScroll.borderType = .bezelBorder
+        quoteScroll.hasVerticalScroller = true
+        quoteScroll.autohidesScrollers = true
+        quoteScroll.translatesAutoresizingMaskIntoConstraints = false
+
+        quotePane.orientation = .vertical
+        quotePane.alignment = .leading
+        quotePane.spacing = 8
+        quotePane.translatesAutoresizingMaskIntoConstraints = false
+        for view in [quoteScroll, quoteHint] as [NSView] { quotePane.addArrangedSubview(view) }
+    }
+
+    @objc private func switchMode(_ sender: NSSegmentedControl) {
+        let all = BreakVisual.allCases
+        guard all.indices.contains(sender.selectedSegment) else { return }
+        mode = all[sender.selectedSegment]
+        applyMode()
+        resizeToFit()
+        if mode == .quote { window.makeFirstResponder(quoteView) }
+        onModeChange?(mode)
+    }
+
+    private func applyMode() {
+        let showingGif = mode == .gif
+        gifPane.isHidden = !showingGif
+        quotePane.isHidden = showingGif
+        browseButton.isHidden = !showingGif
+        resetButton.isHidden = !showingGif
+        loadButton.keyEquivalent = showingGif ? "\r" : ""
+        sub.stringValue = showingGif
+            ? "It fills the screen while your eyes rest."
+            : "They fill the screen while your eyes rest."
+    }
+
+    private func commitQuotes() {
+        quotes = quoteView.string
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        onQuotesChange?(quotes)
+    }
+
+    func textDidChange(_ notification: Notification) {
+        guard notification.object as AnyObject? === quoteView else { return }
+        commitQuotes()
     }
 
     private func commit(_ newPath: String?, label: String?) {
@@ -1483,6 +1606,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         get { UserDefaults.standard.string(forKey: Keys.gifLabel) }
         set { UserDefaults.standard.set(newValue, forKey: Keys.gifLabel) }
     }
+    var quotes: [String] {
+        get { UserDefaults.standard.stringArray(forKey: Keys.quotes) ?? [] }
+        set { UserDefaults.standard.set(newValue, forKey: Keys.quotes) }
+    }
+    var breakVisual: BreakVisual {
+        get { BreakVisual(rawValue: UserDefaults.standard.string(forKey: Keys.breakVisual) ?? "") ?? .gif }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: Keys.breakVisual) }
+    }
     var blinkMinutes: Int {
         get { UserDefaults.standard.integer(forKey: Keys.blinkMinutes) }
         set { UserDefaults.standard.set(newValue, forKey: Keys.blinkMinutes) }
@@ -1507,7 +1638,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private var infoItem: NSMenuItem?
     private var forecastItem: NSMenuItem?
-    private var gifPicker: GifPicker?
+    private var breakPicker: BreakPicker?
+    private var currentQuote: String?
+    private var interruptedApp: NSRunningApplication?
     private var thumbnailCache: (path: String, image: NSImage)?
     private var tickTimer: Timer?
     private var breakTimer: Timer?
@@ -1738,8 +1871,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func startBreak() {
         guard !onBreak else { return }
         onBreak = true
+        interruptedApp = NSWorkspace.shared.frontmostApplication
         clearHold()
         breakRemaining = breakSeconds
+        pickQuote()
         ledger.breakBegan(now: Date())
         showOverlays()
         updateBreakLabels()
@@ -1764,6 +1899,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard onBreak || !overlayWindows.isEmpty else { return }
         breakTimer?.invalidate(); breakTimer = nil
         onBreak = false
+        restoreFocus()
 
         let now = Date()
         ledger.breakEnded(now: now,
@@ -1788,6 +1924,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         secondsUntilBreak = workMinutes * 60
         resetBlinkCountdown()
         updateStatusTitle()
+    }
+
+    private func restoreFocus() {
+        let previous = interruptedApp
+        interruptedApp = nil
+        guard NSApp.isActive else { return }
+        if let previous, !previous.isTerminated,
+           previous.processIdentifier != ProcessInfo.processInfo.processIdentifier,
+           previous.activate(options: []) { return }
+        NSApp.deactivate()
     }
 
     private func showOverlays() {
@@ -1837,7 +1983,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         stack.spacing = 24
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        if let path = gifPath, let img = NSImage(contentsOfFile: path) {
+        if let quote = currentQuote {
+            let hero = makeQuoteLabel(quote, maxWidth: (size.width * 0.62).rounded())
+            stack.addArrangedSubview(hero)
+            stack.setCustomSpacing(30, after: hero)
+
+            let cue = makeLabel("Look 20 feet away", size: 15,
+                                color: NSColor.white.withAlphaComponent(0.55))
+            stack.addArrangedSubview(cue)
+            stack.setCustomSpacing(34, after: cue)
+        } else if let path = gifPath, let img = NSImage(contentsOfFile: path) {
             let maxW = size.width * 0.42
             let maxH = size.height * 0.46
             var w = img.size.width, h = img.size.height
@@ -1876,17 +2031,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             ])
             stack.addArrangedSubview(card)
             stack.setCustomSpacing(36, after: card)
+            addBreakHeadline(to: stack)
         } else {
             let emoji = makeLabel("😍", size: 108)
             stack.addArrangedSubview(emoji)
             stack.setCustomSpacing(32, after: emoji)
+            addBreakHeadline(to: stack)
         }
-
-        stack.addArrangedSubview(makeLabel("Look 20 feet away", size: 36, weight: .semibold))
-        let subtitle = makeLabel("Rest your eyes until the timer ends",
-                                 size: 15, color: NSColor.white.withAlphaComponent(0.55))
-        stack.addArrangedSubview(subtitle)
-        stack.setCustomSpacing(34, after: subtitle)
 
         let ring = RingProgressView(frame: NSRect(x: 0, y: 0, width: 128, height: 128))
         ring.translatesAutoresizingMaskIntoConstraints = false
@@ -1938,6 +2089,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         l.alignment = .center
         l.translatesAutoresizingMaskIntoConstraints = false
         return l
+    }
+
+    private func addBreakHeadline(to stack: NSStackView) {
+        stack.addArrangedSubview(makeLabel("Look 20 feet away", size: 36, weight: .semibold))
+        let subtitle = makeLabel("Rest your eyes until the timer ends",
+                                 size: 15, color: NSColor.white.withAlphaComponent(0.55))
+        stack.addArrangedSubview(subtitle)
+        stack.setCustomSpacing(34, after: subtitle)
+    }
+
+    private func makeQuoteLabel(_ text: String, maxWidth: CGFloat) -> NSTextField {
+        let size: CGFloat = text.count > 150 ? 26 : (text.count > 70 ? 32 : 38)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        paragraph.lineSpacing = size * 0.2
+
+        let l = NSTextField(wrappingLabelWithString: text)
+        l.isSelectable = false
+        l.alignment = .center
+        l.maximumNumberOfLines = 6
+        l.preferredMaxLayoutWidth = maxWidth
+        l.attributedStringValue = NSAttributedString(string: text, attributes: [
+            .font: NSFont.systemFont(ofSize: size, weight: .medium),
+            .foregroundColor: NSColor.white.withAlphaComponent(0.94),
+            .paragraphStyle: paragraph,
+        ])
+        l.translatesAutoresizingMaskIntoConstraints = false
+        l.widthAnchor.constraint(lessThanOrEqualToConstant: maxWidth).isActive = true
+        return l
+    }
+
+    private func pickQuote() {
+        guard breakVisual == .quote else { currentQuote = nil; return }
+        let pool = quotes.count > 1 ? quotes.filter { $0 != currentQuote } : quotes
+        currentQuote = pool.randomElement()
     }
 
     private func updateBreakLabels() {
@@ -1998,13 +2184,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         addItem(to: menu, isPaused ? "Resume" : "Pause", #selector(togglePause), key: "p")
         menu.addItem(.separator())
 
-        let gif = NSMenuItem(title: "Choose Break GIF…", action: #selector(openGifPicker), keyEquivalent: "")
-        gif.target = self
-        if let p = gifPath {
-            gif.attributedTitle = menuTitle("Break GIF…", subtitle: gifLabel ?? (p as NSString).lastPathComponent)
-            gif.image = menuThumbnail(for: p)
+        let visual = NSMenuItem(title: "Break screen…", action: #selector(openBreakPicker), keyEquivalent: "")
+        visual.target = self
+        switch breakVisual {
+        case .gif:
+            if let p = gifPath {
+                visual.attributedTitle = menuTitle("Break screen…",
+                                                   subtitle: gifLabel ?? (p as NSString).lastPathComponent)
+                visual.image = menuThumbnail(for: p)
+            }
+        case .quote:
+            let subtitle: String
+            switch quotes.count {
+            case 0:  subtitle = "no words yet"
+            case 1:  subtitle = "1 quote"
+            default: subtitle = "\(quotes.count) quotes"
+            }
+            visual.attributedTitle = menuTitle("Break screen…", subtitle: subtitle)
         }
-        menu.addItem(gif)
+        menu.addItem(visual)
 
         let intervalItem = NSMenuItem(title: "Work interval", action: nil, keyEquivalent: "")
         let intervalMenu = NSMenu()
@@ -2169,17 +2367,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         buildMenu()
     }
 
-    @objc private func openGifPicker() {
-        if let picker = gifPicker { picker.show(); return }
-        let picker = GifPicker(currentPath: gifPath, storeDir: appSupportDir())
+    @objc private func openBreakPicker() {
+        if let picker = breakPicker { picker.show(); return }
+        let picker = BreakPicker(currentPath: gifPath, quotes: quotes,
+                                 mode: breakVisual, storeDir: appSupportDir())
         picker.onChange = { [weak self] path, label in
             guard let self = self else { return }
             self.gifPath = path
             self.gifLabel = label
             self.buildMenu()
         }
-        picker.onClose = { [weak self] in self?.gifPicker = nil }
-        gifPicker = picker
+        picker.onQuotesChange = { [weak self] quotes in self?.quotes = quotes }
+        picker.onModeChange = { [weak self] mode in
+            guard let self = self else { return }
+            self.breakVisual = mode
+            self.buildMenu()
+        }
+        picker.onClose = { [weak self] in
+            self?.breakPicker = nil
+            self?.buildMenu()
+        }
+        breakPicker = picker
         picker.show()
     }
 

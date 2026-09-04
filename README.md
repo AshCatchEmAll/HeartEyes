@@ -30,6 +30,7 @@ something you'll actually enjoy instead of dismiss.
 
 - 🕒 **The 20‑20‑20 rule, automated** — a countdown lives in your menu bar.
 - 🖼️ **Your GIF, full screen** — pick any local GIF or paste a Giphy/Tenor link.
+- ✍️ **Or your own words** — a list of quotes instead, one on screen each break.
 - 🖥️ **Every display** — the overlay sits above full‑screen apps and the menu bar.
 - 👁️ **Gentle blink reminders** — optional, wordless nudges from the menu bar or a whole‑screen eyelid.
 - 🎥 **Smart auto‑pause** — holds breaks during calls and full‑screen video, and skips one when you've stepped away.
@@ -71,10 +72,12 @@ menu bar.
   calls. On‑device and deletable — never a daily score.
 - **Take a break now** (⌘B) — trigger a break immediately
 - **Pause / Resume** (⌘P)
-- **Break GIF…** — one window to pick what you see during breaks: drop a file on the
-  preview, browse for one, or paste a **Giphy** / **Tenor** / `.gif` link. Share links
-  resolve to the real image, download, and cache locally. If you've already copied a
-  link or a GIF, it's offered to you in one click.
+- **Break screen…** — one window to pick what you see during breaks, either
+  **a picture** or **your words**. For a picture: drop a file on the preview, browse
+  for one, or paste a **Giphy** / **Tenor** / `.gif` link. Share links resolve to the
+  real image, download, and cache locally. If you've already copied a link or a GIF,
+  it's offered to you in one click. For words: type a quote per line — anything that
+  gets you out of the chair — and a different one fills the screen each break.
 - **Work interval** — 10 / 20 / 30 / 45 / 60 min (plus a 1‑min test mode)
 - **Break length** — 10 / 20 / 30 / 60 sec
 - **Blink reminders** — off, or every 3 / 5 / 10 min, in four styles (Hearts, Sparkles,
