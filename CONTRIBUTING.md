@@ -16,8 +16,13 @@ project and we'd like to keep it that way — lean, native, and easy to read.
 Sources/                  The macOS app — Swift + AppKit, no dependencies
   main.swift              Menu bar, timers, break overlay, blink nudges, GIF picker
   RestLedger.swift        Rest-history model + weekly aggregation (pure, unit-tested)
+  Routine.swift           Break-routine model: N breaks, tasks placed on them (pure, unit-tested)
+  RoutinePicker.swift     The "Break routine…" editor window
+  Settings.swift          UserDefaults keys + typed accessors shared by the app and the MCP server
+  MCPServer.swift         `HeartEyes --mcp`: a dependency-free MCP server over stdio
+  AgentConnect.swift      The "Connect an agent…" window (copyable MCP setup snippets)
   ReflectionWindow.swift  The "This week…" reflection panel
-Tests/                    RestLedger unit tests (run by ./test.sh)
+Tests/                    RestLedger + Routine unit tests (run by ./test.sh)
 build.sh                  Compiles a universal, ad‑hoc‑signed HeartEyes.app
 .github/workflows/        CI (builds + tests the app) and the tagged Release
 ```

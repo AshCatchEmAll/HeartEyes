@@ -9,7 +9,8 @@ RES="$APP/Contents/Resources"
 VERSION="${HEARTEYES_VERSION:-1.0.0}"
 SIGN_ID="${MACOS_SIGN_IDENTITY:--}"
 
-SRC=(Sources/RestLedger.swift Sources/ReflectionWindow.swift Sources/main.swift)
+SRC=(Sources/RestLedger.swift Sources/Routine.swift Sources/Settings.swift Sources/RoutinePicker.swift
+     Sources/MCPServer.swift Sources/AgentConnect.swift Sources/ReflectionWindow.swift Sources/main.swift)
 FRAMEWORKS=(-framework Cocoa -framework CoreAudio -framework IOKit
   -framework ServiceManagement -framework UniformTypeIdentifiers)
 

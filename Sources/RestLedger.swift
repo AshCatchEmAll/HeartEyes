@@ -10,6 +10,7 @@ struct DayRecord: Codable, Equatable {
     var breaksSkipped = 0
     var activeByHour = [Int](repeating: 0, count: 24)
     var skipsByHour = [Int](repeating: 0, count: 24)
+    var skipsByActivity: [String: Int]?
     var longestStretchSeconds = 0
     var longestStretchStart: Date?
     var longestStretchEnd: Date?
@@ -39,6 +40,7 @@ final class RestLedger {
         var skipped = 0
         var activeByHour = [Double](repeating: 0, count: 24)
         var skipsByHour = [Int](repeating: 0, count: 24)
+        var skipsByActivity: [String: Int] = [:]
         var longestStretch = 0.0
         var stretchStart: Date?
         var stretchEnd: Date?
@@ -74,6 +76,7 @@ final class RestLedger {
         r.breaksSkipped = b.skipped
         r.activeByHour = b.activeByHour.map { Int($0.rounded()) }
         r.skipsByHour = b.skipsByHour
+        r.skipsByActivity = b.skipsByActivity.isEmpty ? nil : b.skipsByActivity
         r.longestStretchSeconds = Int(b.longestStretch.rounded())
         r.longestStretchStart = b.stretchStart
         r.longestStretchEnd = b.stretchEnd
@@ -116,6 +119,7 @@ final class RestLedger {
             b.skipped = r.breaksSkipped
             b.activeByHour = r.activeByHour.map(Double.init)
             b.skipsByHour = r.skipsByHour
+            b.skipsByActivity = r.skipsByActivity ?? [:]
             b.longestStretch = Double(r.longestStretchSeconds)
             b.stretchStart = r.longestStretchStart
             b.stretchEnd = r.longestStretchEnd
@@ -162,14 +166,16 @@ final class RestLedger {
 
     func breakBegan(now: Date) { resync(now: now) }
 
-    func breakEnded(now: Date, restedSeconds: Int, completed: Bool) {
+    func breakEnded(now: Date, restedSeconds: Int, completed: Bool, activity: String? = nil) {
+        let rested = Double(max(0, restedSeconds))
+        spread(from: now.addingTimeInterval(-rested), to: now) { b, _, seconds in b.rest += seconds }
         bucket(for: now) { b in
-            b.rest += Double(max(0, restedSeconds))
             if completed {
                 b.completed += 1
             } else {
                 b.skipped += 1
                 b.skipsByHour[self.hour(now)] += 1
+                if let activity { b.skipsByActivity[activity, default: 0] += 1 }
             }
         }
         if completed { endStretch(overridingEnd: now) }
@@ -291,12 +297,14 @@ struct WeekSummary {
     let totalHeldSeconds: Int
 
     let restRatio: Double?
+    var restSecondsPerHour: Int? { restRatio.map { Int(($0 * 3600).rounded()) } }
 
     let breaksCompleted: Int
     let breaksSkipped: Int
 
     let skipsByHour: [Int]
     let skipCluster: (startHour: Int, count: Int)?
+    let mostSkipped: (name: String, count: Int)?
 
     var isEmpty: Bool { totalActiveSeconds == 0 && breaksCompleted == 0 && breaksSkipped == 0 }
 
@@ -321,6 +329,7 @@ struct WeekSummary {
         var longest = 0, longestDay: String?, longestStart: Date?
         var active = 0, rest = 0, held = 0, completed = 0, skipped = 0
         var hours = [Int](repeating: 0, count: 24)
+        var byActivity: [String: Int] = [:]
         for d in window {
             if d.longestStretchSeconds > longest {
                 longest = d.longestStretchSeconds
@@ -333,6 +342,7 @@ struct WeekSummary {
             completed += d.breaksCompleted
             skipped += d.breaksSkipped
             for h in 0..<24 where h < d.skipsByHour.count { hours[h] += d.skipsByHour[h] }
+            for (name, n) in d.skipsByActivity ?? [:] { byActivity[name, default: 0] += n }
         }
 
         longestStretchSeconds = longest
@@ -346,6 +356,13 @@ struct WeekSummary {
         breaksSkipped = skipped
         skipsByHour = hours
         skipCluster = Self.cluster(in: hours, total: skipped)
+        mostSkipped = Self.worst(in: byActivity, total: skipped)
+    }
+
+    private static func worst(in byActivity: [String: Int], total: Int) -> (name: String, count: Int)? {
+        guard total >= 4, let top = byActivity.max(by: { $0.value < $1.value }) else { return nil }
+        guard top.value >= 3, Double(top.value) >= 0.5 * Double(total) else { return nil }
+        return (top.key, top.value)
     }
 
     private static func cluster(in hours: [Int], total: Int) -> (startHour: Int, count: Int)? {

@@ -66,6 +66,49 @@ final class PillButton: NSButton {
     override func mouseExited(with event: NSEvent) { hovering = false; NSCursor.arrow.set() }
 }
 
+final class HoldToSkipView: NSView {
+    private let track = CALayer()
+    private let fill = CALayer()
+    private var progress: CGFloat = 0
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        let label = NSTextField(labelWithString: "Hold Esc to skip")
+        label.font = .systemFont(ofSize: 13, weight: .medium)
+        label.textColor = NSColor.white.withAlphaComponent(0.45)
+        label.alignment = .center
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
+        track.backgroundColor = NSColor.white.withAlphaComponent(0.14).cgColor
+        fill.backgroundColor = NSColor(calibratedRed: 1.0, green: 0.42, blue: 0.55, alpha: 1).cgColor
+        for l in [track, fill] { l.cornerRadius = 1.5; layer?.addSublayer(l) }
+        fill.isHidden = true
+        NSLayoutConstraint.activate([
+            label.topAnchor.constraint(equalTo: topAnchor),
+            label.centerXAnchor.constraint(equalTo: centerXAnchor),
+            widthAnchor.constraint(equalToConstant: 150),
+            heightAnchor.constraint(equalToConstant: 30),
+        ])
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func layout() {
+        super.layout()
+        track.frame = NSRect(x: 0, y: 2, width: bounds.width, height: 3)
+        fill.frame = NSRect(x: 0, y: 2, width: bounds.width * progress, height: 3)
+    }
+
+    func setProgress(_ p: CGFloat) {
+        progress = max(0, min(1, p))
+        CATransaction.begin()
+        CATransaction.setDisableActions(progress > 0)
+        fill.isHidden = progress == 0
+        fill.frame = NSRect(x: 0, y: 2, width: bounds.width * progress, height: 3)
+        CATransaction.commit()
+    }
+}
+
 final class RingProgressView: NSView {
     private let track = CAShapeLayer()
     private let bar = CAShapeLayer()
@@ -861,24 +904,6 @@ enum Presence {
     }
 }
 
-private enum Keys {
-    static let gifPath = "gifPath"
-    static let gifLabel = "gifLabel"
-    static let quotes = "quotes"
-    static let breakVisual = "breakVisual"
-    static let workMinutes = "workMinutes"
-    static let breakSeconds = "breakSeconds"
-    static let blinkMinutes = "blinkMinutes"
-    static let blinkStyle = "blinkStyle"
-    static let blinkScope = "blinkScope"
-    static let blinkExplained = "blinkExplained"
-    static let autoPause = "autoPause"
-    static let naturalBreaks = "naturalBreaks"
-    static let auditDay = "auditDay"
-    static let heldToday = "heldToday"
-    static let naturalToday = "naturalToday"
-}
-
 enum BreakVisual: String, CaseIterable {
     case gif, quote
 
@@ -978,7 +1003,7 @@ enum GifLoader {
         return nil
     }
 
-    static func save(_ data: Data, in dir: URL) throws -> URL {
+    static func save(_ data: Data, in dir: URL, prune: Bool = true) throws -> URL {
         let ext: String
         if data.starts(with: Data("GIF".utf8)) { ext = "gif" }
         else if data.starts(with: [0x89, 0x50, 0x4E, 0x47]) { ext = "png" }
@@ -986,7 +1011,7 @@ enum GifLoader {
         else { ext = "img" }
         let dest = dir.appendingPathComponent("break-\(UUID().uuidString).\(ext)")
         try data.write(to: dest, options: .atomic)
-        prune(in: dir, keeping: dest)
+        if prune { Self.prune(in: dir, keeping: dest) }
         return dest
     }
 
@@ -1000,9 +1025,9 @@ enum GifLoader {
     }
 }
 
-fileprivate func pickerLabel(_ text: String, size: CGFloat,
-                             weight: NSFont.Weight = .regular,
-                             color: NSColor = .labelColor) -> NSTextField {
+func pickerLabel(_ text: String, size: CGFloat,
+                 weight: NSFont.Weight = .regular,
+                 color: NSColor = .labelColor) -> NSTextField {
     let l = NSTextField(labelWithString: text)
     l.font = .systemFont(ofSize: size, weight: weight)
     l.textColor = color
@@ -1590,28 +1615,28 @@ final class BreakPicker: NSObject, NSWindowDelegate, NSTextFieldDelegate, NSText
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     var workMinutes: Int {
-        get { let v = UserDefaults.standard.integer(forKey: Keys.workMinutes); return v == 0 ? 20 : v }
-        set { UserDefaults.standard.set(newValue, forKey: Keys.workMinutes) }
+        get { Settings.workMinutes }
+        set { Settings.workMinutes = newValue }
     }
     var breakSeconds: Int {
-        get { let v = UserDefaults.standard.integer(forKey: Keys.breakSeconds); return v == 0 ? 20 : v }
-        set { UserDefaults.standard.set(newValue, forKey: Keys.breakSeconds) }
+        get { Settings.breakSeconds }
+        set { Settings.breakSeconds = newValue }
     }
     var gifPath: String? {
-        get { UserDefaults.standard.string(forKey: Keys.gifPath) }
-        set { UserDefaults.standard.set(newValue, forKey: Keys.gifPath) }
+        get { Settings.gifPath }
+        set { Settings.gifPath = newValue }
     }
     var gifLabel: String? {
-        get { UserDefaults.standard.string(forKey: Keys.gifLabel) }
-        set { UserDefaults.standard.set(newValue, forKey: Keys.gifLabel) }
+        get { Settings.gifLabel }
+        set { Settings.gifLabel = newValue }
     }
     var quotes: [String] {
-        get { UserDefaults.standard.stringArray(forKey: Keys.quotes) ?? [] }
-        set { UserDefaults.standard.set(newValue, forKey: Keys.quotes) }
+        get { Settings.quotes }
+        set { Settings.quotes = newValue }
     }
     var breakVisual: BreakVisual {
-        get { BreakVisual(rawValue: UserDefaults.standard.string(forKey: Keys.breakVisual) ?? "") ?? .gif }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: Keys.breakVisual) }
+        get { BreakVisual(rawValue: Settings.breakVisualRaw) ?? .gif }
+        set { Settings.breakVisualRaw = newValue.rawValue }
     }
     var blinkMinutes: Int {
         get { UserDefaults.standard.integer(forKey: Keys.blinkMinutes) }
@@ -1629,6 +1654,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         get { UserDefaults.standard.object(forKey: Keys.autoPause) as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: Keys.autoPause) }
     }
+    var hardMode: Bool {
+        get { Settings.hardMode }
+        set { Settings.hardMode = newValue }
+    }
+    var routineOn: Bool {
+        get { Settings.routineOn }
+        set { Settings.routineOn = newValue }
+    }
+    var routine: Routine {
+        get { Settings.routine }
+        set { Settings.routine = newValue }
+    }
     var naturalBreaks: Bool {
         get { UserDefaults.standard.object(forKey: Keys.naturalBreaks) as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: Keys.naturalBreaks) }
@@ -1637,15 +1674,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private var infoItem: NSMenuItem?
     private var forecastItem: NSMenuItem?
+    private var nextUpItem: NSMenuItem?
     private var breakPicker: BreakPicker?
+    private var routinePicker: RoutinePicker?
+    private var agentConnect: AgentConnect?
     private var currentQuote: String?
+    private var currentActivity: Activity?
+    private var previewing = false
     private var interruptedApp: NSRunningApplication?
     private var thumbnailCache: (path: String, image: NSImage)?
     private var tickTimer: Timer?
     private var breakTimer: Timer?
     private var secondsUntilBreak = 20 * 60
     private var secondsUntilBlink = 0
-    private var breakRemaining = 20
+    private var breakEndsAt = Date.distantPast
+    private var breakTotal = 20
+    private var breakRemaining: Int { max(0, Int(breakEndsAt.timeIntervalSinceNow.rounded(.up))) }
     private var isPaused = false
     private var onBreak = false
     private var blinkPopover: NSPopover?
@@ -1659,6 +1703,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var overlayWindows: [NSWindow] = []
     private var countdownLabels: [NSTextField] = []
     private var ringViews: [RingProgressView] = []
+    private var doneButtons: [PillButton] = []
+    private var holdViews: [HoldToSkipView] = []
+    private var escMonitor: Any?
+    private var escHeldSince: Date?
+    private var escTimer: Timer?
+    private static let escHoldSeconds: TimeInterval = 3
 
     private let ledger = RestLedger()
     private let history = RestHistory(url: RestHistory.defaultURL())
@@ -1687,6 +1737,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         buildMenu()
         updateStatusTitle()
         startTicking()
+        observeExternalChanges()
+    }
+
+    private func observeExternalChanges() {
+        DistributedNotificationCenter.default().addObserver(
+            forName: Settings.changedNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            guard let self = self else { return }
+            let keys = note.userInfo?["keys"] as? [String] ?? []
+            if keys.contains(Keys.workMinutes), !self.onBreak { self.resetCountdown() }
+            if keys.contains(Keys.breakSeconds) { self.ledger.setRestThreshold(self.naturalRestThreshold) }
+            if keys.contains(Keys.routine) || keys.contains(Keys.routineOn) { self.routinePicker?.window.performClose(nil) }
+            self.thumbnailCache = nil
+            self.buildMenu()
+            self.updateStatusTitle()
+            if let summary = note.userInfo?["summary"] as? String { self.explain(summary) }
+        }
     }
 
     private func observeSleepAndWake() {
@@ -1850,9 +1917,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             UserDefaults.standard.set(today, forKey: Keys.auditDay)
             UserDefaults.standard.set(0, forKey: Keys.heldToday)
             UserDefaults.standard.set(0, forKey: Keys.naturalToday)
+            UserDefaults.standard.set(0, forKey: Keys.shownToday)
         }
         UserDefaults.standard.set(UserDefaults.standard.integer(forKey: key) + 1, forKey: key)
         buildMenu()
+    }
+
+    private func breaksShownToday() -> Int { Settings.breaksShownToday }
+
+    private func nextUpText() -> String? {
+        guard routineOn, !isPaused else { return nil }
+        let shown = breaksShownToday()
+        let plan = routine.upcoming(routine.length, after: shown)
+        guard let k = plan.firstIndex(where: { $0 != nil }), let next = plan[k] else { return nil }
+        if k > 0 { return "\(next.name) in \(k + 1) breaks" }
+        var text = "Up next: \(next.name)"
+        if let after = plan.dropFirst().first ?? nil { text += ", then \(after.name)" }
+        return text
     }
 
     private func auditText() -> String? {
@@ -1867,50 +1948,101 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return "Today: " + parts.joined(separator: " · ")
     }
 
-    private func startBreak() {
+    private func startBreak(preview: Bool = false) {
         guard !onBreak else { return }
         onBreak = true
+        previewing = preview
         interruptedApp = NSWorkspace.shared.frontmostApplication
         clearHold()
-        breakRemaining = breakSeconds
+        if preview {
+            currentActivity = routineOn ? routine.activity(forBreak: breaksShownToday() + 1) : nil
+        } else {
+            bumpAudit(Keys.shownToday)
+            currentActivity = routineOn ? routine.activity(forBreak: breaksShownToday()) : nil
+        }
+        breakTotal = preview ? 8 : (currentActivity?.seconds ?? breakSeconds)
+        breakEndsAt = Date().addingTimeInterval(TimeInterval(breakTotal))
         pickQuote()
-        ledger.breakBegan(now: Date())
+        if !preview { ledger.breakBegan(now: Date()) }
         showOverlays()
         updateBreakLabels()
-        let t = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            self.breakRemaining -= 1
-            if self.breakRemaining <= 0 {
-                self.finishBreak(completed: true)
-            } else {
-                self.updateBreakLabels()
-            }
-        }
+        if hardMode { installEscHold() }
+        let t = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.tickBreak() }
         RunLoop.main.add(t, forMode: .common)
         breakTimer = t
         NSApp.activate(ignoringOtherApps: true)
         updateStatusTitle()
     }
 
+    private func tickBreak() {
+        guard onBreak else { return }
+        if breakRemaining <= 0 { finishBreak(completed: true); return }
+        updateBreakLabels()
+        let elapsed = breakTotal - breakRemaining
+        if elapsed >= doneFloor {
+            revealDone()
+        } else {
+            for button in doneButtons { button.title = "Done  ·  \(doneFloor - elapsed) s" }
+        }
+        snapshotOverlay()
+    }
+
+    private func snapshotOverlay() {
+        guard let dir = ProcessInfo.processInfo.environment["HEARTEYES_SNAPSHOT"],
+              let view = overlayWindows.first?.contentView, let layer = view.layer,
+              let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds),
+              let ctx = NSGraphicsContext(bitmapImageRep: rep) else { return }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = ctx
+        layer.render(in: ctx.cgContext)
+        NSGraphicsContext.restoreGraphicsState()
+        let file = URL(fileURLWithPath: dir).appendingPathComponent("break-\(breakTotal - breakRemaining)s.png")
+        try? rep.representation(using: .png, properties: [:])?.write(to: file)
+    }
+
+    private var doneFloor: Int { previewing ? 3 : min(20, breakSeconds, breakTotal) }
+
+    private func revealDone() {
+        for button in doneButtons where !button.isEnabled {
+            button.isEnabled = true
+            button.title = "Done  ·  ⏎"
+            button.keyEquivalent = "\r"
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.35
+                button.animator().alphaValue = 1
+            }
+        }
+    }
+
     @objc private func skipBreak() { finishBreak(completed: false) }
+    @objc private func completeBreak() { finishBreak(completed: true) }
 
     private func finishBreak(completed: Bool) {
         guard onBreak || !overlayWindows.isEmpty else { return }
         breakTimer?.invalidate(); breakTimer = nil
+        removeEscHold()
         onBreak = false
         restoreFocus()
 
         let now = Date()
-        ledger.breakEnded(now: now,
-                          restedSeconds: max(0, breakSeconds - max(0, breakRemaining)),
-                          completed: completed)
-        settledAt = now.addingTimeInterval(Self.overlaySettle)
-        saveHistory(now: now)
+        let wasPreview = previewing
+        if !wasPreview {
+            ledger.breakEnded(now: now,
+                              restedSeconds: max(0, breakTotal - breakRemaining),
+                              completed: completed,
+                              activity: currentActivity?.name)
+            settledAt = now.addingTimeInterval(Self.overlaySettle)
+            saveHistory(now: now)
+        }
+        previewing = false
+        currentActivity = nil
 
         let windows = overlayWindows
         overlayWindows.removeAll()
         countdownLabels.removeAll()
         ringViews.removeAll()
+        doneButtons.removeAll()
+        holdViews.removeAll()
 
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.3
@@ -1920,8 +2052,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             for w in windows { w.orderOut(nil) }
         }
 
-        secondsUntilBreak = workMinutes * 60
-        resetBlinkCountdown()
+        if !wasPreview {
+            secondsUntilBreak = workMinutes * 60
+            resetBlinkCountdown()
+        }
         updateStatusTitle()
     }
 
@@ -1929,10 +2063,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let previous = interruptedApp
         interruptedApp = nil
         guard NSApp.isActive else { return }
-        if let previous, !previous.isTerminated,
-           previous.processIdentifier != ProcessInfo.processInfo.processIdentifier,
-           previous.activate(options: []) { return }
+        if previous?.processIdentifier == ProcessInfo.processInfo.processIdentifier {
+            let ownWindowOpen = breakPicker != nil || routinePicker != nil || reflection?.window?.isVisible == true
+            if ownWindowOpen { return }
+        } else if let previous, !previous.isTerminated, previous.activate(options: []) {
+            return
+        }
         NSApp.deactivate()
+    }
+
+    private func installEscHold() {
+        escMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
+            guard let self, event.keyCode == 53 else { return event }
+            if event.type == .keyDown {
+                if !event.isARepeat { self.beginEscHold() }
+            } else {
+                self.endEscHold()
+            }
+            return nil
+        }
+    }
+
+    private func beginEscHold() {
+        guard escHeldSince == nil else { return }
+        escHeldSince = Date()
+        let t = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
+            guard let self, let since = self.escHeldSince else { return }
+            let fraction = Date().timeIntervalSince(since) / Self.escHoldSeconds
+            if fraction >= 1 {
+                self.finishBreak(completed: false)
+            } else {
+                for v in self.holdViews { v.setProgress(fraction) }
+            }
+        }
+        RunLoop.main.add(t, forMode: .common)
+        escTimer = t
+    }
+
+    private func endEscHold() {
+        escHeldSince = nil
+        escTimer?.invalidate(); escTimer = nil
+        for v in holdViews { v.setProgress(0) }
+    }
+
+    private func removeEscHold() {
+        endEscHold()
+        if let monitor = escMonitor { NSEvent.removeMonitor(monitor) }
+        escMonitor = nil
     }
 
     private func showOverlays() {
@@ -1982,16 +2159,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         stack.spacing = 24
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        if let quote = currentQuote {
-            let hero = makeQuoteLabel(quote, maxWidth: (size.width * 0.62).rounded())
+        if previewing {
+            let tag = makeLabel("Preview — your next break will look like this", size: 13,
+                                color: NSColor.white.withAlphaComponent(0.4))
+            stack.addArrangedSubview(tag)
+            stack.setCustomSpacing(28, after: tag)
+        }
+
+        let taskGif = currentActivity?.gif
+        let heroLine = (taskGif == nil && breakVisual == .quote) ? (currentActivity?.line ?? currentQuote) : nil
+        let footLine = heroLine == nil ? currentActivity?.line : nil
+        let lineWidth = (size.width * 0.62).rounded()
+
+        if let quote = heroLine {
+            let hero = makeQuoteLabel(quote, maxWidth: lineWidth)
             stack.addArrangedSubview(hero)
             stack.setCustomSpacing(30, after: hero)
 
-            let cue = makeLabel("Look 20 feet away", size: 15,
-                                color: NSColor.white.withAlphaComponent(0.55))
-            stack.addArrangedSubview(cue)
-            stack.setCustomSpacing(34, after: cue)
-        } else if let path = gifPath, let img = NSImage(contentsOfFile: path) {
+            if currentActivity != nil {
+                addBreakHeadline(to: stack, compact: true)
+            } else {
+                let cue = makeLabel("Look 20 feet away", size: 15,
+                                    color: NSColor.white.withAlphaComponent(0.55))
+                stack.addArrangedSubview(cue)
+                stack.setCustomSpacing(34, after: cue)
+            }
+        } else if let path = taskGif ?? gifPath, let img = NSImage(contentsOfFile: path) {
             let maxW = size.width * 0.42
             let maxH = size.height * 0.46
             var w = img.size.width, h = img.size.height
@@ -2030,17 +2223,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             ])
             stack.addArrangedSubview(card)
             stack.setCustomSpacing(36, after: card)
-            addBreakHeadline(to: stack)
+            addBreakHeadline(to: stack, line: footLine, lineWidth: lineWidth)
         } else {
             let emoji = makeLabel("😍", size: 108)
             stack.addArrangedSubview(emoji)
             stack.setCustomSpacing(32, after: emoji)
-            addBreakHeadline(to: stack)
+            addBreakHeadline(to: stack, line: footLine, lineWidth: lineWidth)
         }
 
         let ring = RingProgressView(frame: NSRect(x: 0, y: 0, width: 128, height: 128))
         ring.translatesAutoresizingMaskIntoConstraints = false
-        ring.setFraction(CGFloat(breakRemaining) / CGFloat(max(breakSeconds, 1)), animated: false)
+        ring.setFraction(CGFloat(breakRemaining) / CGFloat(max(breakTotal, 1)), animated: false)
         ringViews.append(ring)
 
         let number = makeLabel("\(breakRemaining)", size: 46, weight: .bold)
@@ -2066,9 +2259,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         if primary {
             stack.setCustomSpacing(40, after: ringHost)
-            let skip = PillButton(title: "Skip  ·  Esc", target: self, action: #selector(skipBreak))
-            skip.keyEquivalent = "\u{1b}"
-            stack.addArrangedSubview(skip)
+            let actions = NSStackView()
+            actions.orientation = .horizontal
+            actions.spacing = 14
+            actions.translatesAutoresizingMaskIntoConstraints = false
+            if currentActivity != nil {
+                let done = PillButton(title: "Done  ·  \(doneFloor) s", target: self, action: #selector(completeBreak))
+                done.alphaValue = 0.35
+                done.isEnabled = false
+                doneButtons.append(done)
+                actions.addArrangedSubview(done)
+            }
+            if hardMode {
+                let hold = HoldToSkipView(frame: .zero)
+                hold.translatesAutoresizingMaskIntoConstraints = false
+                holdViews.append(hold)
+                actions.addArrangedSubview(hold)
+            } else {
+                let skip = PillButton(title: "Skip  ·  Esc", target: self, action: #selector(skipBreak))
+                skip.keyEquivalent = "\u{1b}"
+                actions.addArrangedSubview(skip)
+            }
+            stack.addArrangedSubview(actions)
         }
 
         root.addSubview(stack)
@@ -2090,12 +2302,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return l
     }
 
-    private func addBreakHeadline(to stack: NSStackView) {
-        stack.addArrangedSubview(makeLabel("Look 20 feet away", size: 36, weight: .semibold))
-        let subtitle = makeLabel("Rest your eyes until the timer ends",
-                                 size: 15, color: NSColor.white.withAlphaComponent(0.55))
+    private func addBreakHeadline(to stack: NSStackView, compact: Bool = false,
+                                  line: String? = nil, lineWidth: CGFloat = 600) {
+        let title = currentActivity?.name ?? "Look 20 feet away"
+        let detail = currentActivity.map { "Away from the screen for \(Routine.durationLong($0.seconds))" }
+            ?? "Rest your eyes until the timer ends"
+        stack.addArrangedSubview(makeLabel(title, size: compact ? 24 : 36, weight: .semibold))
+        let subtitle = makeLabel(detail, size: compact ? 13 : 15, color: NSColor.white.withAlphaComponent(0.55))
         stack.addArrangedSubview(subtitle)
-        stack.setCustomSpacing(34, after: subtitle)
+        guard let line else { stack.setCustomSpacing(34, after: subtitle); return }
+        stack.setCustomSpacing(18, after: subtitle)
+        let foot = NSTextField(wrappingLabelWithString: line)
+        foot.isSelectable = false
+        foot.alignment = .center
+        foot.maximumNumberOfLines = 3
+        foot.preferredMaxLayoutWidth = lineWidth
+        foot.font = .systemFont(ofSize: 19, weight: .medium)
+        foot.textColor = NSColor.white.withAlphaComponent(0.82)
+        foot.translatesAutoresizingMaskIntoConstraints = false
+        foot.widthAnchor.constraint(lessThanOrEqualToConstant: lineWidth).isActive = true
+        stack.addArrangedSubview(foot)
+        stack.setCustomSpacing(34, after: foot)
     }
 
     private func makeQuoteLabel(_ text: String, maxWidth: CGFloat) -> NSTextField {
@@ -2126,7 +2353,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func updateBreakLabels() {
-        let fraction = CGFloat(breakRemaining) / CGFloat(max(breakSeconds, 1))
+        let fraction = CGFloat(breakRemaining) / CGFloat(max(breakTotal, 1))
         for l in countdownLabels { l.stringValue = "\(breakRemaining)" }
         for r in ringViews { r.setFraction(fraction, animated: true) }
     }
@@ -2170,6 +2397,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(forecast)
         forecastItem = forecast
 
+        let nextUp = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        nextUp.isEnabled = false
+        nextUp.isHidden = true
+        menu.addItem(nextUp)
+        nextUpItem = nextUp
+        refreshNextUp()
+
         if let audit = auditText() {
             let line = NSMenuItem(title: audit, action: nil, keyEquivalent: "")
             line.isEnabled = false
@@ -2202,6 +2436,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             visual.attributedTitle = menuTitle("Break screen…", subtitle: subtitle)
         }
         menu.addItem(visual)
+
+        let routineItem = NSMenuItem(title: "Break routine…", action: #selector(openRoutinePicker), keyEquivalent: "")
+        routineItem.target = self
+        if routineOn, !routine.isEmpty {
+            routineItem.attributedTitle = menuTitle("Break routine…", subtitle: routine.names.joined(separator: ", "))
+        }
+        menu.addItem(routineItem)
 
         let intervalItem = NSMenuItem(title: "Work interval", action: nil, keyEquivalent: "")
         let intervalMenu = NSMenu()
@@ -2268,6 +2509,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         naturalItem.state = naturalBreaks ? .on : .off
         menu.addItem(naturalItem)
 
+        let hardItem = NSMenuItem(title: "Breaks can't be skipped", action: #selector(toggleHardMode), keyEquivalent: "")
+        hardItem.target = self
+        hardItem.attributedTitle = menuTitle("Breaks can't be skipped", subtitle: "hold Esc for 3 seconds to skip")
+        hardItem.state = hardMode ? .on : .off
+        menu.addItem(hardItem)
+
         menu.addItem(.separator())
 
         addItem(to: menu, "Delete rest history…", #selector(eraseHistory))
@@ -2289,6 +2536,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             login.state = .off
         }
         menu.addItem(login)
+        addItem(to: menu, "Connect an agent…", #selector(openAgentConnect))
 
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit HeartEyes", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
@@ -2309,8 +2557,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ])
     }
 
+    private func refreshNextUp() {
+        if let text = nextUpText() {
+            nextUpItem?.attributedTitle = secondaryTitle(text)
+            nextUpItem?.isHidden = false
+        } else {
+            nextUpItem?.isHidden = true
+        }
+    }
+
     func menuNeedsUpdate(_ menu: NSMenu) {
         infoItem?.title = statusInfoText()
+        refreshNextUp()
 
         let looming: Hold? = (autoPause && !onBreak && !isPaused && currentHold == nil)
             ? Presence.hold() : nil
@@ -2369,7 +2627,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func openBreakPicker() {
         if let picker = breakPicker { picker.show(); return }
         let picker = BreakPicker(currentPath: gifPath, quotes: quotes,
-                                 mode: breakVisual, storeDir: appSupportDir())
+                                 mode: breakVisual, storeDir: Settings.appSupportDir())
         picker.onChange = { [weak self] path, label in
             guard let self = self else { return }
             self.gifPath = path
@@ -2390,11 +2648,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         picker.show()
     }
 
-    private func appSupportDir() -> URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let dir = base.appendingPathComponent("HeartEyes", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir
+    @objc private func openRoutinePicker() {
+        if let picker = routinePicker { picker.show(); return }
+        let picker = RoutinePicker(routine: routine, enabled: routineOn,
+                                   workMinutes: workMinutes, breakSeconds: breakSeconds,
+                                   storeDir: Settings.taskGifDir())
+        picker.onChange = { [weak self] routine, on in
+            guard let self = self else { return }
+            self.routine = routine
+            self.routineOn = on
+            self.buildMenu()
+        }
+        picker.onPreview = { [weak self] in self?.startBreak(preview: true) }
+        picker.onClose = { [weak self] in
+            guard let self = self else { return }
+            self.routinePicker = nil
+            self.buildMenu()
+            guard self.routineOn, !self.routine.isEmpty,
+                  !UserDefaults.standard.bool(forKey: Keys.routineExplained) else { return }
+            UserDefaults.standard.set(true, forKey: Keys.routineExplained)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.startBreak(preview: true) }
+        }
+        routinePicker = picker
+        picker.show()
+    }
+
+    @objc private func openAgentConnect() {
+        if let panel = agentConnect { panel.show(); return }
+        let panel = AgentConnect()
+        panel.onClose = { [weak self] in self?.agentConnect = nil }
+        agentConnect = panel
+        panel.show()
+    }
+
+    @objc private func toggleHardMode() {
+        hardMode.toggle()
+        buildMenu()
     }
 
     private func menuTitle(_ title: String, subtitle: String) -> NSAttributedString {
@@ -2450,7 +2739,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             BlinkNudge.shared.play(from: self.statusItem, style: self.blinkStyle, scope: self.blinkScope)
             guard !UserDefaults.standard.bool(forKey: Keys.blinkExplained) else { return }
             UserDefaults.standard.set(true, forKey: Keys.blinkExplained)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { self.explainBlink() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+                self.explain("That flutter is your cue to blink.\nA few slow ones — your eyes will thank you.")
+            }
         }
     }
 
@@ -2481,12 +2772,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    private func explainBlink() {
+    private func explain(_ text: String) {
         guard let button = statusItem.button else { return }
+        blinkPopover?.performClose(nil)
+        blinkPopover = nil
         let width: CGFloat = 214
 
-        let label = NSTextField(wrappingLabelWithString:
-            "That flutter is your cue to blink.\nA few slow ones — your eyes will thank you.")
+        let label = NSTextField(wrappingLabelWithString: text)
         label.font = .systemFont(ofSize: 12)
         label.alignment = .center
         label.textColor = .labelColor
@@ -2506,8 +2798,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         blinkPopover = popover
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) { [weak self] in
-            self?.blinkPopover?.performClose(nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
+            guard self?.blinkPopover === popover else { return }
+            popover.performClose(nil)
             self?.blinkPopover = nil
         }
     }
@@ -2578,6 +2871,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         alert.runModal()
     }
 }
+
+if CommandLine.arguments.contains("--mcp") { MCPServer.run() }
 
 let app = NSApplication.shared
 let delegate = AppDelegate()

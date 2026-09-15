@@ -34,7 +34,10 @@ something you'll actually enjoy instead of dismiss.
 - 🖥️ **Every display** — the overlay sits above full‑screen apps and the menu bar.
 - 👁️ **Gentle blink reminders** — optional, wordless nudges from the menu bar or a whole‑screen eyelid.
 - 🎥 **Smart auto‑pause** — holds breaks during calls and full‑screen video, and skips one when you've stepped away.
+- 🏃 **Break routine** — optional: give each break something to do. Say how many breaks a routine spans, place tasks on them — taking turns, every 5th, or on break 20 — each with its own length, a line of your own, and a GIF of its own. Adds nothing new; it fills the breaks you already take.
+- 🔒 **Hard mode** — optional: breaks can't be skipped with a reflex. Hold Esc for three seconds if you really must.
 - 📊 **Weekly reflection** — a private *This week…* look at your rest, computed on your Mac.
+- 🤖 **Works with your agent** — a built‑in MCP server lets Claude (or any MCP client) set up a routine, pick GIFs and lines per task, or read your week — on your say‑so.
 - 🔒 **Private & offline** — no account, no telemetry, no cloud, no camera. Everything stays on your Mac.
 - 🪶 **Tiny & native** — dependency‑free Swift (AppKit). Universal binary, macOS 13+.
 - 💙 **Free & open source, forever** — MIT licensed.
@@ -68,8 +71,8 @@ menu bar.
 ## Menu
 
 - **This week…** — a private weekly reflection: your longest stretch without a break,
-  how much of your screen time was rest, breaks taken vs. skipped, and time held during
-  calls. On‑device and deletable — never a daily score.
+  minutes of break for every hour at the screen, breaks taken vs. skipped, and time held
+  during calls. On‑device and deletable — never a daily score.
 - **Take a break now** (⌘B) — trigger a break immediately
 - **Pause / Resume** (⌘P)
 - **Break screen…** — one window to pick what you see during breaks, either
@@ -78,6 +81,15 @@ menu bar.
   real image, download, and cache locally. If you've already copied a link or a GIF,
   it's offered to you in one click. For words: type a quote per line — anything that
   gets you out of the chair — and a different one fills the screen each break.
+- **Break routine…** — off by default. Give each break something to do. Choose how many
+  breaks the routine spans (say 12, then it starts over), then add tasks and place them:
+  **taking turns** (10 push‑ups → 10 squats → hold a plank → …), **every Nth break**
+  (water every 3rd), or **on specific breaks** (a 30‑minute walk on break 12). Each task
+  has its own length, and can carry a line of your own and a GIF of its own for that
+  break. Start from a built‑in routine or build your own; a live strip shows exactly what
+  every break will be, and the menu always says what's up next. Counts only breaks you're
+  actually shown, and starts over each morning. Every break still protects its first
+  seconds for your eyes — **Done** only unlocks after that.
 - **Work interval** — 10 / 20 / 30 / 45 / 60 min (plus a 1‑min test mode)
 - **Break length** — 10 / 20 / 30 / 60 sec
 - **Blink reminders** — off, or every 3 / 5 / 10 min, in four styles (Hearts, Sparkles,
@@ -86,10 +98,54 @@ menu bar.
   or full‑screen video is going. On by default.
 - **Count time away as a break** — skip a break when you've already been away from the
   keyboard. On by default.
+- **Breaks can't be skipped** — hard mode, off by default. The Skip button goes away; to
+  get out you hold **Esc** for three seconds, so a skip is a decision rather than a reflex.
+  Calls and video still hold breaks as before.
 - **Launch at login** — start HeartEyes automatically
+- **Connect an agent…** — the command or config snippet that points Claude Code, Codex,
+  Claude Desktop or any MCP client at HeartEyes' built‑in server, with a Copy button.
 - **Quit** (⌘Q)
 
-During a break, press **Esc** (or click **Skip**) to end it early.
+During a break, press **Esc** (or click **Skip**) to end it early. With a routine on, a
+**Done** button unlocks once the eye‑rest part is over — for when the push‑ups are done
+before the timer is.
+
+## Let your agent set it up
+
+HeartEyes has a built‑in [MCP](https://modelcontextprotocol.io) server, so an agent can
+configure it for you: *"make me a desk‑workout routine for a 6‑hour day, with water every
+third break and a walk at the end"*, *"give the walk a GIF of a forest"*, *"how did my week
+go?"*. It's the same binary with a flag — no extra install.
+
+The easiest way: **Connect an agent…** in the menu shows the exact command or snippet
+for wherever your copy of HeartEyes lives — Claude Code, Codex, or JSON for Claude
+Desktop, Cursor and others — with a Copy button. Or by hand:
+
+**Claude Code**
+
+```bash
+claude mcp add hearteyes -- /Applications/HeartEyes.app/Contents/MacOS/HeartEyes --mcp
+```
+
+**Claude Desktop** (or any MCP client) — add to its `mcpServers`:
+
+```json
+{
+  "hearteyes": {
+    "command": "/Applications/HeartEyes.app/Contents/MacOS/HeartEyes",
+    "args": ["--mcp"]
+  }
+}
+```
+
+Tools: `get_settings`, `set_routine`, `set_break_screen`, `set_interval`,
+`set_break_length`, `read_reflection`. Changes apply to the running app immediately and
+you're told in the menu bar ("Your agent set up a new routine — next: 10 push‑ups").
+Deliberately **not** exposed: hard mode — that's a decision you make by hand.
+
+The server never opens a connection on its own; the only network use is fetching a GIF
+link the agent passes on your behalf. `read_reflection` hands your weekly numbers to
+whichever agent you asked — nothing else ever leaves the Mac.
 
 ## Privacy
 

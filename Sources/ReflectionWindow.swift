@@ -90,8 +90,9 @@ final class ReflectionWindowController: NSWindowController {
         stack.setCustomSpacing(26, after: chart)
         stack.addArrangedSubview(statsRow(summary))
 
-        if let note = clusterNote(summary) {
-            stack.setCustomSpacing(22, after: stack.arrangedSubviews.last!)
+        let notes = [clusterNote(summary), mostSkippedNote(summary)].compactMap { $0 }
+        for (i, note) in notes.enumerated() {
+            stack.setCustomSpacing(i == 0 ? 22 : 12, after: stack.arrangedSubviews.last!)
             stack.addArrangedSubview(noteRow(note))
         }
 
@@ -132,8 +133,8 @@ final class ReflectionWindowController: NSWindowController {
         row.translatesAutoresizingMaskIntoConstraints = false
         row.widthAnchor.constraint(equalToConstant: 396).isActive = true
 
-        let ratio = s.restRatio.map { String(format: "%.1f%%", $0 * 100) } ?? "—"
-        row.addArrangedSubview(statTile(value: ratio, caption: "of screen time\nspent resting"))
+        let perHour = s.restSecondsPerHour.map(durationTile) ?? "—"
+        row.addArrangedSubview(statTile(value: perHour, caption: "of breaks for every\nhour at the screen"))
         row.addArrangedSubview(statTile(value: "\(s.breaksCompleted)",
                                         caption: s.breaksSkipped > 0 ? "breaks taken\n\(s.breaksSkipped) skipped"
                                                                      : "breaks taken\nnone skipped"))
@@ -220,6 +221,18 @@ final class ReflectionWindowController: NSWindowController {
         let from = clock(c.startHour), to = clock(c.startHour + 3)
         return "Most of the breaks you skipped fell between \(from) and \(to). "
              + "A shorter work interval in that stretch might be easier to keep."
+    }
+
+    private static func mostSkippedNote(_ s: WeekSummary) -> String? {
+        guard let worst = s.mostSkipped else { return nil }
+        return "The break you skipped most was “\(worst.name)”. If it's too long for the day, "
+             + "shortening it or spacing it out might make it easier to keep."
+    }
+
+    private static func durationTile(_ seconds: Int) -> String {
+        let m = seconds / 60, s = seconds % 60
+        if m == 0 { return "\(s)s" }
+        return s == 0 ? "\(m)m" : "\(m)m \(s)s"
     }
 
     private static func rangeText(now: Date, calendar: Calendar) -> String {

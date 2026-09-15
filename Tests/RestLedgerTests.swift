@@ -64,20 +64,20 @@ private final class Sim {
         ledger.breakEnded(now: now, restedSeconds: seconds, completed: true)
     }
 
-    func skipBreak(after rested: Int) {
+    func skipBreak(after rested: Int, activity: String? = nil) {
         ledger.breakBegan(now: now)
         now += TimeInterval(rested)
-        ledger.breakEnded(now: now, restedSeconds: rested, completed: false)
+        ledger.breakEnded(now: now, restedSeconds: rested, completed: false, activity: activity)
     }
 
     func today() -> DayRecord { ledger.snapshot(day: ledger.dayKey(now), now: now) }
     func day(_ date: Date) -> DayRecord { ledger.snapshot(day: ledger.dayKey(date), now: now) }
 }
 
-private var failures = 0
-private var checks = 0
+var failures = 0
+var checks = 0
 
-private func expect(_ actual: Int, _ expected: Int, _ what: String) {
+func expect(_ actual: Int, _ expected: Int, _ what: String) {
     checks += 1
     if actual != expected {
         failures += 1
@@ -85,7 +85,7 @@ private func expect(_ actual: Int, _ expected: Int, _ what: String) {
     }
 }
 
-private func expect(_ actual: Date?, _ expected: Date?, _ what: String) {
+func expect(_ actual: Date?, _ expected: Date?, _ what: String) {
     checks += 1
     if actual != expected {
         failures += 1
@@ -94,7 +94,7 @@ private func expect(_ actual: Date?, _ expected: Date?, _ what: String) {
     }
 }
 
-private func test(_ name: String, _ body: () -> Void) {
+func test(_ name: String, _ body: () -> Void) {
     print("• \(name)")
     body()
 }
@@ -273,6 +273,37 @@ enum RestLedgerTests {
             expect(d.skipsByHour[9], 0, "and none in the morning")
         }
 
+        test("a long break is all rest, none of it exposure, and it ends the stretch") {
+            let s = Sim(start: at(2026, 7, 10, 14, 40))
+            s.type(600)
+            s.completeBreak(1800)
+            s.type(600)
+            let d = s.today()
+            expect(d.restSeconds, 1800, "the whole walk was rest")
+            expect(d.activeSeconds, 1200, "and none of it was exposure")
+            expect(d.longestStretchSeconds, 600, "the walk ended the stretch")
+        }
+
+        test("a break across midnight rests both days") {
+            let s = Sim(start: at(2026, 7, 10, 23, 55))
+            s.type(120)
+            s.completeBreak(600)
+            expect(s.day(at(2026, 7, 10, 12)).restSeconds, 180, "three minutes before midnight")
+            expect(s.day(at(2026, 7, 11, 12)).restSeconds, 420, "seven after")
+        }
+
+        test("skips remember which activity was on screen") {
+            let s = Sim(start: at(2026, 7, 10, 15))
+            for _ in 0..<3 { s.type(1200); s.skipBreak(after: 1, activity: "Take a walk") }
+            s.type(1200); s.skipBreak(after: 1)
+            s.type(1200); s.skipBreak(after: 1, activity: "10 squats")
+            let d = s.today()
+            expect(d.breaksSkipped, 5, "five skips")
+            expect(d.skipsByActivity?["Take a walk"] ?? 0, 3, "three of them were the walk")
+            expect(d.skipsByActivity?["10 squats"] ?? 0, 1, "one was squats")
+            expect(d.skipsByActivity?.count ?? 0, 2, "a plain eye rest has no activity to file under")
+        }
+
         test("a day with no exposure has no ratio to report") {
             let s = Sim(start: nine)
             s.away(3600)
@@ -400,6 +431,31 @@ enum RestLedgerTests {
                 failures += 1; print("  ✗ four skips spread across the day is not a cluster")
             }
         }
+
+        test("the ratio reads as seconds of break per hour at the screen") {
+            let w = WeekSummary(records: [dayRecord("2026-07-10", active: 7200, rest: 120)],
+                                asOf: asOf, calendar: utc)
+            expect(w.restSecondsPerHour ?? -1, 60, "two minutes across two hours is a minute an hour")
+            let walk = WeekSummary(records: [dayRecord("2026-07-10", active: 28800, rest: 480 + 1800)],
+                                   asOf: asOf, calendar: utc)
+            expect(walk.restSecondsPerHour ?? -1, 285, "a daily walk shows up honestly, not clipped")
+        }
+
+        test("the break skipped most is named only when it dominates") {
+            var rec = dayRecord("2026-07-10", skipped: 6)
+            rec.skipsByActivity = ["Take a walk": 4, "10 squats": 1]
+            let w = WeekSummary(records: [rec], asOf: asOf, calendar: utc)
+            checks += 1
+            if w.mostSkipped?.name != "Take a walk" || w.mostSkipped?.count != 4 {
+                failures += 1; print("  ✗ expected the walk to be the most skipped, got \(String(describing: w.mostSkipped))")
+            }
+            rec.skipsByActivity = ["Take a walk": 2, "10 squats": 2]
+            let tie = WeekSummary(records: [rec], asOf: asOf, calendar: utc)
+            checks += 1
+            if tie.mostSkipped != nil { failures += 1; print("  ✗ two of six is not a pattern") }
+        }
+
+        RoutineTests.run()
 
         print("")
         if failures == 0 {
